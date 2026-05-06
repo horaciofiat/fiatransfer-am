@@ -570,7 +570,7 @@ body {
 /* ═══════════════════════════════════════════════════════ */
 .send-screen {
   background: var(--charcoal);
-  padding-bottom: 30px;
+  padding-bottom: 60px;
 }
 
 .amount-section {
@@ -721,6 +721,7 @@ body {
 /* ═══════════════════════════════════════════════════════ */
 .recipient-screen {
   background: var(--charcoal);
+  padding-bottom: 60px;
 }
 .search-input {
   margin: 0 24px 24px;
@@ -822,6 +823,7 @@ body {
 /* ═══════════════════════════════════════════════════════ */
 .method-screen {
   background: var(--charcoal);
+  padding-bottom: 60px;
 }
 .method-headline {
   padding: 0 24px 8px;
@@ -944,6 +946,7 @@ body {
 /* ═══════════════════════════════════════════════════════ */
 .confirm-screen {
   background: var(--charcoal);
+  padding-bottom: 60px;
 }
 .confirm-card {
   margin: 0 24px 16px;
@@ -1100,6 +1103,7 @@ body {
 /* ═══════════════════════════════════════════════════════ */
 .track-screen {
   background: var(--charcoal);
+  padding-bottom: 60px;
 }
 .track-status {
   text-align: center;
@@ -1432,7 +1436,13 @@ body {
     box-shadow: none;
   }
   .phone::before { display: none; }
-  .demo-badge { bottom: 6px; }
+  .demo-badge {
+    bottom: auto;
+    top: 8px;
+    background: rgba(15, 15, 16, 0.95);
+    padding: 4px 10px;
+    font-size: 8px;
+  }
 }
 </style>
 </head>
@@ -1984,6 +1994,9 @@ function goTo(screen) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById('screen-' + screen).classList.add('active');
   document.querySelector('.app').scrollTo({ top: 0, behavior: 'instant' });
+
+  // When entering confirmation screen, update the amounts there too
+  if (screen === 'send-confirm') updateConfirmScreen();
 }
 
 function selectMethod(el) {
@@ -1991,7 +2004,105 @@ function selectMethod(el) {
   el.classList.add('selected');
 }
 
-// Auto-advance the tracking timeline for nice demo effect
+/* ═══ AMOUNT KEYPAD LOGIC ═══ */
+const FX_RATE = 17.460;            // 1 USD = 17.460 MXN
+const FEE = 1.00;                  // flat fee
+const SPREAD = 0.008;              // 0.8% FX spread
+const WU_TYPICAL_FEE = 26.96;      // illustrative WU equivalent
+
+let amountStr = '320';             // starts at 320 USD
+
+function updateAmountUI() {
+  const value = parseFloat(amountStr) || 0;
+  const intPart = amountStr.includes('.')
+    ? amountStr.split('.')[0]
+    : amountStr;
+  const decPart = amountStr.includes('.')
+    ? '.' + amountStr.split('.')[1]
+    : '';
+
+  // Big amount display (with cursor)
+  const display = document.getElementById('amount-int');
+  if (display) display.textContent = (intPart || '0') + decPart;
+
+  // FX bridge (USD → MXN)
+  const mxnAmount = value * FX_RATE * (1 - SPREAD);
+  const usdEl = document.getElementById('fx-usd');
+  const mxnEl = document.getElementById('fx-mxn');
+  if (usdEl) usdEl.textContent = '$' + value.toFixed(2);
+  if (mxnEl) mxnEl.textContent = '$' + mxnAmount.toLocaleString('en-US', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2
+  });
+
+  // Compare strip - savings vs WU
+  const savings = (value * 0.07) + 5;       // simplified illustrative number
+  const compEl = document.querySelector('.compare-strip-text b');
+  if (compEl) compEl.textContent = '$' + savings.toFixed(2);
+}
+
+function pressKey(key) {
+  if (key === '⌫') {
+    if (amountStr.length > 1) {
+      amountStr = amountStr.slice(0, -1);
+    } else {
+      amountStr = '0';
+    }
+  } else if (key === '.') {
+    if (!amountStr.includes('.')) {
+      amountStr = amountStr + '.';
+    }
+  } else {
+    // digit
+    if (amountStr === '0') {
+      amountStr = key;
+    } else {
+      // limit to reasonable length and 2 decimals
+      const parts = amountStr.split('.');
+      if (parts[1] && parts[1].length >= 2) return;
+      if (amountStr.replace('.', '').length >= 7) return;
+      amountStr = amountStr + key;
+    }
+  }
+  updateAmountUI();
+}
+
+/* Wire up keypad buttons */
+document.querySelectorAll('.key').forEach(btn => {
+  btn.addEventListener('click', () => pressKey(btn.textContent.trim()));
+});
+
+/* Update confirm screen with current amount */
+function updateConfirmScreen() {
+  const value = parseFloat(amountStr) || 0;
+  const mxnAmount = value * FX_RATE * (1 - SPREAD);
+  const spread = value * SPREAD * FX_RATE / FX_RATE;
+  const totalCost = FEE + (value * SPREAD);
+  const savings = (value * 0.07) + 5;
+
+  const sendEl = document.querySelector('#screen-send-confirm .confirm-amount');
+  if (sendEl) sendEl.innerHTML = '<span class="curr">USD</span>' + value.toFixed(2);
+
+  const recvEl = document.querySelector('#screen-send-confirm .confirm-receives');
+  if (recvEl) recvEl.innerHTML = '<span class="curr">MXN</span>' + mxnAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  // Breakdown rows
+  const breakdownVals = document.querySelectorAll('#screen-send-confirm .breakdown-value');
+  if (breakdownVals[1]) breakdownVals[1].textContent = '$' + (value * SPREAD).toFixed(2);
+  if (breakdownVals[3]) breakdownVals[3].textContent = '$' + totalCost.toFixed(2);
+
+  // Savings pill
+  const pill = document.querySelector('#screen-send-confirm .savings-pill');
+  if (pill) pill.textContent = '−$' + savings.toFixed(2) + ' vs WU';
+
+  // CTA button
+  const cta = document.querySelector('#screen-send-confirm .btn-primary');
+  if (cta) cta.innerHTML = 'Confirm and send $' + value.toFixed(2) + ' <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M13 5l7 7-7 7"/></svg>';
+}
+
+/* Initialize */
+updateAmountUI();
+
+/* ═══ TRACKING TIMELINE ANIMATION ═══ */
 let trackInterval;
 function startTrackAnimation() {
   let step = 2;
@@ -2007,7 +2118,6 @@ function startTrackAnimation() {
         steps[step + 1].classList.add('current');
         steps[step + 1].querySelector('.tl-marker').textContent = '⚡';
       } else {
-        // Final state
         const status = document.querySelector('.track-status-title');
         const sub = document.querySelector('.track-status-sub');
         if (status) status.textContent = 'Delivered to Rosa';
@@ -2019,7 +2129,6 @@ function startTrackAnimation() {
   }, 1800);
 }
 
-// Detect when track screen becomes active
 const observer = new MutationObserver(() => {
   if (document.getElementById('screen-track').classList.contains('active')) {
     if (trackInterval) clearInterval(trackInterval);
