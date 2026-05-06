@@ -1648,18 +1648,18 @@ body {
       </div>
 
       <div class="keypad">
-        <button class="key">1</button>
-        <button class="key">2</button>
-        <button class="key">3</button>
-        <button class="key">4</button>
-        <button class="key">5</button>
-        <button class="key">6</button>
-        <button class="key">7</button>
-        <button class="key">8</button>
-        <button class="key">9</button>
-        <button class="key special">.</button>
-        <button class="key">0</button>
-        <button class="key special">⌫</button>
+        <button class="key" data-key="1">1</button>
+        <button class="key" data-key="2">2</button>
+        <button class="key" data-key="3">3</button>
+        <button class="key" data-key="4">4</button>
+        <button class="key" data-key="5">5</button>
+        <button class="key" data-key="6">6</button>
+        <button class="key" data-key="7">7</button>
+        <button class="key" data-key="8">8</button>
+        <button class="key" data-key="9">9</button>
+        <button class="key special" data-key=".">.</button>
+        <button class="key" data-key="0">0</button>
+        <button class="key special" data-key="DEL">⌫</button>
       </div>
 
       <div class="send-cta">
@@ -2041,7 +2041,7 @@ function updateAmountUI() {
 }
 
 function pressKey(key) {
-  if (key === '⌫') {
+  if (key === 'DEL') {
     if (amountStr.length > 1) {
       amountStr = amountStr.slice(0, -1);
     } else {
@@ -2066,9 +2066,24 @@ function pressKey(key) {
   updateAmountUI();
 }
 
-/* Wire up keypad buttons */
+/* Wire up keypad buttons - works for both click and touch */
 document.querySelectorAll('.key').forEach(btn => {
-  btn.addEventListener('click', () => pressKey(btn.textContent.trim()));
+  const key = btn.getAttribute('data-key');
+  let handled = false;
+
+  btn.addEventListener('touchstart', function(e) {
+    e.preventDefault();
+    handled = true;
+    pressKey(key);
+  }, { passive: false });
+
+  btn.addEventListener('click', function(e) {
+    e.preventDefault();
+    if (!handled) {
+      pressKey(key);
+    }
+    handled = false;
+  });
 });
 
 /* Update confirm screen with current amount */
